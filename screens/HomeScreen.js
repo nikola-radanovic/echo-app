@@ -11,6 +11,7 @@ import {
 import * as Location from 'expo-location';
 import { GeoFirestore } from 'geofirestore';
 import { firebase, firestore } from '../firebaseConfig';
+import Toast from 'react-native-toast-message';
 
 const HomeScreen = () => {
   const [text, setText] = useState('');
@@ -42,11 +43,11 @@ const HomeScreen = () => {
         location: new firebase.firestore.GeoPoint(location.latitude, location.longitude)
       });
       setText('');
-      alert('Echo posted!');
+      Toast.show({ type: 'success', text1: 'Echo posted!' });
       loadNearbyEchoes(location);
     } catch (e) {
       console.error('❌ Failed to post echo:', e);
-      alert('Failed to post echo.');
+      Toast.show({ type: 'error', text1: 'Failed to post echo.' });
     }
   };
 
@@ -55,10 +56,13 @@ const HomeScreen = () => {
       const geoFirestore = new GeoFirestore(firestore);
       const geoCollection = geoFirestore.collection('echoes');
 
-      const query = geoCollection.near({
-        center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
-        radius: 10
-      });
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const query = geoCollection
+        .near({
+          center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
+          radius: 10
+        })
+        .where('createdAt', '>=', firebase.firestore.Timestamp.fromDate(since));
 
       const snapshot = await query.get();
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -66,7 +70,11 @@ const HomeScreen = () => {
       setEchoes(data);
     } catch (e) {
       console.error('❌ Echo failed:', e.code, e.message);
-      alert(`Failed to post echo: ${e.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to load echoes',
+        text2: e.message,
+      });
     }
   };
 
@@ -126,3 +134,4 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
+
