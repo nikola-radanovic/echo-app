@@ -72,7 +72,12 @@ const HomeScreen = () => {
         .where('createdAt', '>=', since);
 
       const snapshot = await query.get();
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const now = Date.now();
+      const cutoff = now - 24 * 60 * 60 * 1000;
+      const data = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((echo) => echo.createdAt && echo.createdAt.toMillis() >= cutoff)
+        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       console.log('📦 Nearby Echoes:', data);
       setEchoes(data);
     } catch (e) {
