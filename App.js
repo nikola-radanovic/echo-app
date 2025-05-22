@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { app } from './firebaseConfig';
 import HomeScreen from './screens/HomeScreen';
+import Toast from 'react-native-toast-message';
 
 export default function App() {
   useEffect(() => {
@@ -9,5 +10,10 @@ export default function App() {
     signInAnonymously(auth).catch(console.error);
   }, []);
 
-  return <HomeScreen />;
+  return (
+    <>
+      <HomeScreen />
+      <Toast />
+    </>
+  );
 }
