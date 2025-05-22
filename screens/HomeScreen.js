@@ -5,30 +5,35 @@ import {
   Button,
   StyleSheet,
   Text,
-  Alert,
   ScrollView
 } from 'react-native';
 import * as Location from 'expo-location';
 import { GeoFirestore } from 'geofirestore';
 import { firebase, firestore } from '../firebaseConfig';
+import Toast from 'react-native-toast-message';
 
 const HomeScreen = () => {
   const [text, setText] = useState('');
   const [location, setLocation] = useState(null);
   const [echoes, setEchoes] = useState([]);
+  const [radius, setRadius] = useState(10);
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Enable location to use Echo.');
+        Toast.show({
+          type: 'error',
+          text1: 'Permission denied',
+          text2: 'Enable location to use Echo.'
+        });
         return;
       }
 
       const loc = await Location.getCurrentPositionAsync({});
       setLocation(loc.coords);
       console.log('📍 User location:', loc.coords.latitude, loc.coords.longitude);
-      loadNearbyEchoes(loc.coords);
+      loadNearbyEchoes(loc.coords, radius);
     })();
   }, []);
 
@@ -42,23 +47,29 @@ const HomeScreen = () => {
         location: new firebase.firestore.GeoPoint(location.latitude, location.longitude)
       });
       setText('');
-      alert('Echo posted!');
-      loadNearbyEchoes(location);
+      Toast.show({ type: 'success', text1: 'Echo posted!' });
+      loadNearbyEchoes(location, radius);
     } catch (e) {
       console.error('❌ Failed to post echo:', e);
-      alert('Failed to post echo.');
+      Toast.show({ type: 'error', text1: 'Failed to post echo.', text2: e.message });
     }
   };
 
-  const loadNearbyEchoes = async (coords) => {
+  const loadNearbyEchoes = async (coords, queryRadius = radius) => {
     try {
       const geoFirestore = new GeoFirestore(firestore);
       const geoCollection = geoFirestore.collection('echoes');
 
-      const query = geoCollection.near({
-        center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
-        radius: 10
-      });
+      const since = firebase.firestore.Timestamp.fromMillis(
+        Date.now() - 24 * 60 * 60 * 1000
+      );
+
+      const query = geoCollection
+        .near({
+          center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
+          radius: queryRadius
+        })
+        .where('createdAt', '>=', since);
 
       const snapshot = await query.get();
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -66,7 +77,11 @@ const HomeScreen = () => {
       setEchoes(data);
     } catch (e) {
       console.error('❌ Echo failed:', e.code, e.message);
-      alert(`Failed to post echo: ${e.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to load echoes',
+        text2: e.message,
+      });
     }
   };
 
@@ -82,6 +97,25 @@ const HomeScreen = () => {
         multiline
       />
       <Button title="Echo it" onPress={postEcho} />
+
+      <View style={styles.filterContainer}>
+        {[1, 5, 10].map((r) => (
+          <View
+            key={r}
+            style={[styles.filterButton, radius === r && styles.filterButtonActive]}
+          >
+            <Text
+              style={[styles.filterText, radius === r && styles.filterTextActive]}
+              onPress={() => {
+                setRadius(r);
+                if (location) loadNearbyEchoes(location, r);
+              }}
+            >
+              {r}km
+            </Text>
+          </View>
+        ))}
+      </View>
 
       <Text style={styles.subheading}>Nearby Echoes</Text>
       {echoes.length === 0 ? (
@@ -122,7 +156,22 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   echoText: { fontSize: 16 },
-  echoMeta: { fontSize: 10, color: 'gray', marginTop: 5 }
+  echoMeta: { fontSize: 10, color: 'gray', marginTop: 5 },
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 10
+  },
+  filterButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    marginHorizontal: 5
+  },
+  filterButtonActive: { backgroundColor: '#007aff' },
+  filterText: { color: '#000' },
+  filterTextActive: { color: '#fff' }
 });
 
 export default HomeScreen;
