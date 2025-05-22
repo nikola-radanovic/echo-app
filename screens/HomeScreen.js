@@ -55,10 +55,16 @@ const HomeScreen = () => {
       const geoFirestore = new GeoFirestore(firestore);
       const geoCollection = geoFirestore.collection('echoes');
 
-      const query = geoCollection.near({
-        center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
-        radius: 10
-      });
+      const twentyFourHoursAgo = firebase.firestore.Timestamp.fromDate(
+        new Date(Date.now() - 24 * 60 * 60 * 1000)
+      );
+
+      const query = geoCollection
+        .near({
+          center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
+          radius: 10
+        })
+        .where('createdAt', '>=', twentyFourHoursAgo);
 
       const snapshot = await query.get();
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
