@@ -16,6 +16,7 @@ const HomeScreen = () => {
   const [text, setText] = useState('');
   const [location, setLocation] = useState(null);
   const [echoes, setEchoes] = useState([]);
+  const [radius, setRadius] = useState(10);
 
   useEffect(() => {
     (async () => {
@@ -28,7 +29,7 @@ const HomeScreen = () => {
       const loc = await Location.getCurrentPositionAsync({});
       setLocation(loc.coords);
       console.log('📍 User location:', loc.coords.latitude, loc.coords.longitude);
-      loadNearbyEchoes(loc.coords);
+      loadNearbyEchoes(loc.coords, radius);
     })();
   }, []);
 
@@ -43,22 +44,28 @@ const HomeScreen = () => {
       });
       setText('');
       alert('Echo posted!');
-      loadNearbyEchoes(location);
+      loadNearbyEchoes(location, radius);
     } catch (e) {
       console.error('❌ Failed to post echo:', e);
       alert('Failed to post echo.');
     }
   };
 
-  const loadNearbyEchoes = async (coords) => {
+  const loadNearbyEchoes = async (coords, queryRadius = radius) => {
     try {
       const geoFirestore = new GeoFirestore(firestore);
       const geoCollection = geoFirestore.collection('echoes');
 
-      const query = geoCollection.near({
-        center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
-        radius: 10
-      });
+      const since = firebase.firestore.Timestamp.fromMillis(
+        Date.now() - 24 * 60 * 60 * 1000
+      );
+
+      const query = geoCollection
+        .near({
+          center: new firebase.firestore.GeoPoint(coords.latitude, coords.longitude),
+          radius: queryRadius
+        })
+        .where('createdAt', '>=', since);
 
       const snapshot = await query.get();
       const now = Date.now();
@@ -87,6 +94,25 @@ const HomeScreen = () => {
         multiline
       />
       <Button title="Echo it" onPress={postEcho} />
+
+      <View style={styles.filterContainer}>
+        {[1, 5, 10].map((r) => (
+          <View
+            key={r}
+            style={[styles.filterButton, radius === r && styles.filterButtonActive]}
+          >
+            <Text
+              style={[styles.filterText, radius === r && styles.filterTextActive]}
+              onPress={() => {
+                setRadius(r);
+                if (location) loadNearbyEchoes(location, r);
+              }}
+            >
+              {r}km
+            </Text>
+          </View>
+        ))}
+      </View>
 
       <Text style={styles.subheading}>Nearby Echoes</Text>
       {echoes.length === 0 ? (
@@ -127,7 +153,22 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   echoText: { fontSize: 16 },
-  echoMeta: { fontSize: 10, color: 'gray', marginTop: 5 }
+  echoMeta: { fontSize: 10, color: 'gray', marginTop: 5 },
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 10
+  },
+  filterButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    marginHorizontal: 5
+  },
+  filterButtonActive: { backgroundColor: '#007aff' },
+  filterText: { color: '#000' },
+  filterTextActive: { color: '#fff' }
 });
 
 export default HomeScreen;
